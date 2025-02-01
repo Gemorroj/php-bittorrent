@@ -28,14 +28,6 @@ jobs:
       if: steps.composer-cache.outputs.cache-hit != 'true'
       run: composer install --prefer-dist --no-progress --no-suggest
 
-    - name: Get lines of code
-      run: composer run qa:phploc
-
-    - uses: actions/upload-artifact@v1
-      with:
-        name: phploc
-        path: build/artifacts/phploc/phploc.xml
-
     - name: Run static code analyser
       run: composer run qa:phpstan
 
