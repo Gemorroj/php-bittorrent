@@ -1,47 +1,55 @@
-<?php declare(strict_types=1);
+<?php
+
+declare(strict_types=1);
+
 namespace BitTorrent;
 
-use InvalidArgumentException;
-
-interface EncoderInterface {
+interface EncoderInterface
+{
     /**
-     * Encode any encodable variable
+     * Encode any encodable variable.
      *
-     * @param mixed $var The variable to encode. Supports: int, string and array
-     * @throws InvalidArgumentException
+     * @param int|string|array $var The variable to encode. Supports: int, string and array
+     *
+     * @throws \InvalidArgumentException
+     *
      * @return string Returns the encoded string
      */
-    function encode($var) : string;
+    public function encode(int|string|array $var): string;
 
     /**
-     * Encode an integer
+     * Encode an integer.
      *
      * @param int $integer The integer to encode
+     *
      * @return string Returns the encoded string
      */
-    function encodeInteger(int $integer) : string;
+    public function encodeInteger(int $integer): string;
 
     /**
-     * Encode a string
+     * Encode a string.
      *
      * @param string $string The string to encode
+     *
      * @return string Returns the encoded string
      */
-    function encodeString(string $string) : string;
+    public function encodeString(string $string): string;
 
     /**
-     * Encode a list (numerically indexed array)
+     * Encode a list (numerically indexed array).
      *
      * @param array $list The array to encode
+     *
      * @return string Returns the encoded string
      */
-    function encodeList(array $list) : string;
+    public function encodeList(array $list): string;
 
     /**
-     * Encode a dictionary (associative PHP array)
+     * Encode a dictionary (associative PHP array).
      *
      * @param array $dictionary The array to encode
+     *
      * @return string Returns the encoded string
      */
-    function encodeDictionary(array $dictionary) : string;
+    public function encodeDictionary(array $dictionary): string;
 }

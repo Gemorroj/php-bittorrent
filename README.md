@@ -4,7 +4,7 @@
 [![Current Build Status](https://github.com/christeredvartsen/php-bittorrent/workflows/Build%20and%20test/badge.svg)](https://github.com/christeredvartsen/php-bittorrent/actions)
 
 ## Requirements
-PHP BitTorrent requires PHP 7.2 or above.
+PHP BitTorrent requires PHP 8.2 or above.
 
 ## Installation
 PHP BitTorrent can be installed using [Composer](https://getcomposer.org):

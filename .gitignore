@@ -1,7 +1,12 @@
 .idea
-build
-vendor
 composer.phar
+composer.lock
+vendor/
+
+phpstan.neon
+
 phpunit.xml
-PHP_BitTorrent-*.tgz
 .phpunit.result.cache
+
+/.php-cs-fixer.php
+/.php-cs-fixer.cache
