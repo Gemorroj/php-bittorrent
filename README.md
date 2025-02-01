@@ -1,5 +1,5 @@
 # PHP BitTorrent
-**PHP BitTorrent** is a set of components that can be used to interact with torrent files (read+write) and encode/decode to/from the [BitTorrent format](https://wiki.theory.org/index.php/BitTorrentSpecification).
+**PHP BitTorrent** is a set of components that can be used to interact with torrent files (read+write) and encode/decode to/from the [BitTorrent format](https://wiki.theory.org/BitTorrentSpecification).
 
 [![Current Build Status](https://github.com/gemorroj/php-bittorrent/workflows/Build%20and%20test/badge.svg)](https://github.com/gemorroj/php-bittorrent/actions)
 
