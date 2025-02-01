@@ -18,7 +18,7 @@ class DecoderTest extends TestCase
         $this->decoder = new Decoder();
     }
 
-    public function getDecodeIntegerData(): array
+    public static function getDecodeIntegerData(): array
     {
         return [
             ['i1e', 1],
@@ -37,7 +37,7 @@ class DecoderTest extends TestCase
         $this->assertEquals($value, $this->decoder->decodeInteger($encoded));
     }
 
-    public function getDecodeInvalidIntegerData(): array
+    public static function getDecodeInvalidIntegerData(): array
     {
         return [
             ['i01e'],
@@ -81,7 +81,7 @@ class DecoderTest extends TestCase
     /**
      * @return array[]
      */
-    public function getDecodeStringData(): array
+    public static function getDecodeStringData(): array
     {
         return [
             ['4:spam', 'spam'],
@@ -123,7 +123,7 @@ class DecoderTest extends TestCase
     /**
      * @return array[]
      */
-    public function getDecodeListData(): array
+    public static function getDecodeListData(): array
     {
         return [
             ['li1ei2ei3ee', [1, 2, 3]],
@@ -150,7 +150,7 @@ class DecoderTest extends TestCase
         $this->decoder->decodeList('4:spam');
     }
 
-    public function getDecodeDictionaryData(): array
+    public static function getDecodeDictionaryData(): array
     {
         return [
             ['d3:foo3:bar4:spam4:eggse', ['foo' => 'bar', 'spam' => 'eggs']],
@@ -180,7 +180,7 @@ class DecoderTest extends TestCase
     /**
      * @return array[]
      */
-    public function getGenericDecodeData(): array
+    public static function getGenericDecodeData(): array
     {
         return [
             ['i1e', 1],

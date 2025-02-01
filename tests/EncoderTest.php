@@ -21,7 +21,7 @@ class EncoderTest extends TestCase
     /**
      * @return array[]
      */
-    public function getEncodeIntegerData(): array
+    public static function getEncodeIntegerData(): array
     {
         return [
             [-1, 'i-1e'],
@@ -43,7 +43,7 @@ class EncoderTest extends TestCase
     /**
      * @return array[]
      */
-    public function getEncodeStringData(): array
+    public static function getEncodeStringData(): array
     {
         return [
             ['spam', '4:spam'],
@@ -65,7 +65,7 @@ class EncoderTest extends TestCase
     /**
      * @return array[]
      */
-    public function getEncodeListData(): array
+    public static function getEncodeListData(): array
     {
         return [
             [['spam', 1, [1]], 'l4:spami1eli1eee'],
@@ -85,7 +85,7 @@ class EncoderTest extends TestCase
     /**
      * @return array[]
      */
-    public function getEncodeDictionaryData(): array
+    public static function getEncodeDictionaryData(): array
     {
         return [
             [['1' => 'foo', 'foo' => 'bar', 'list' => [1, 2, 3]], 'd1:13:foo3:foo3:bar4:listli1ei2ei3eee'],
@@ -107,7 +107,7 @@ class EncoderTest extends TestCase
     /**
      * @return array[]
      */
-    public function getEncodeData(): array
+    public static function getEncodeData(): array
     {
         return [
             [1, 'i1e'],

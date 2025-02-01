@@ -21,7 +21,7 @@
         "php": ">=8.2"
     },
     "require-dev": {
-        "phpunit/phpunit": "^9.6",
+        "phpunit/phpunit": "^10.5",
         "phpstan/phpstan": "^2.0",
         "friendsofphp/php-cs-fixer": "^3.68"
     },
@@ -36,25 +36,8 @@
         }
     },
     "scripts": {
-        "clean:build": "rm -rf build",
         "qa:lint": "for file in `git ls-files '*php'`; do php -l $file; done",
         "qa:phpstan": "vendor/bin/phpstan analyse src -l max --no-progress",
-        "qa": [
-            "@qa:lint",
-            "@qa:phpstan"
-        ],
-        "test:phpunit": "vendor/bin/phpunit --verbose",
-        "test:phpunit:coverage": [
-            "rm -rf build/artifacts/phpunit/coverage",
-            "mkdir -p build/artifacts/phpunit/coverage",
-            "vendor/bin/phpunit --verbose --coverage-text --coverage-html build/artifacts/phpunit/coverage"
-        ],
-        "test": [
-            "@test:phpunit"
-        ],
-        "ci": [
-            "@qa",
-            "@test"
-        ]
+        "test:phpunit": "vendor/bin/phpunit --configuration phpunit.xml.dist"
     }
 }

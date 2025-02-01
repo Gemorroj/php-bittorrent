@@ -43,7 +43,7 @@ class TorrentTest extends TestCase
     /**
      * @return array<string, array>
      */
-    public function getDataForSettersAndGetters(): array
+    public static function getDataForSettersAndGetters(): array
     {
         return [
             'Announce URL' => [
