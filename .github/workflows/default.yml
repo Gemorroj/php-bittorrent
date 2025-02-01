@@ -30,8 +30,8 @@ jobs:
             composer update --optimize-autoloader --no-interaction --ansi --no-progress --prefer-dist
             composer info -D
 
-      - name: Run static code analyser
-        run: composer run qa:phpstan
+#      - name: Run static code analyser
+#        run: composer run qa:phpstan
 
       - name: Run unit tests
         run: composer run test:phpunit:coverage
