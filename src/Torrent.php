@@ -364,7 +364,7 @@ class Torrent {
         }
 
         return (int) array_sum(array_map(function(array $file) : int {
-            return $file['length'];
+            return (int)$file['length'];
         }, $this->getFileList()));
     }
 
@@ -459,7 +459,7 @@ class Torrent {
         $torrent = new self();
 
         if (isset($dictionary['announce'])) {
-            $torrent = $torrent->withAnnounceUrl($dictionary['announce']);
+            $torrent = $torrent->withAnnounceUrl(is_array($dictionary['announce']) ? $dictionary['announce'][0] : $dictionary['announce']);
             unset($dictionary['announce']);
         }
 
@@ -479,7 +479,7 @@ class Torrent {
         }
 
         if (isset($dictionary['creation date'])) {
-            $torrent = $torrent->withCreatedAt($dictionary['creation date']);
+            $torrent = $torrent->withCreatedAt((int)$dictionary['creation date']);
             unset($dictionary['creation date']);
         }
 
