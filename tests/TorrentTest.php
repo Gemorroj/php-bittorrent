@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace BitTorrent;
 
+use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
-/**
- * @coversDefaultClass \BitTorrent\Torrent
- */
+#[CoversClass(Torrent::class)]
 class TorrentTest extends TestCase
 {
     private Torrent $torrent;
@@ -18,10 +18,6 @@ class TorrentTest extends TestCase
         $this->torrent = new Torrent();
     }
 
-    /**
-     * @covers ::__construct
-     * @covers ::getEncoder
-     */
     public function testConstructor(): void
     {
         $torrent = new Torrent('http://sometracker');
@@ -29,10 +25,6 @@ class TorrentTest extends TestCase
         $this->assertInstanceOf(EncoderInterface::class, $torrent->getEncoder());
     }
 
-    /**
-     * @covers ::withEncoder
-     * @covers ::getEncoder
-     */
     public function testSetAndGetEncoder(): void
     {
         $encoder = $this->createMock(EncoderInterface::class);
@@ -97,26 +89,7 @@ class TorrentTest extends TestCase
         ];
     }
 
-    /**
-     * @dataProvider getDataForSettersAndGetters
-     *
-     * @covers ::withAnnounceUrl
-     * @covers ::withPieceLengthExp
-     * @covers ::withComment
-     * @covers ::withAnnounceList
-     * @covers ::withCreatedBy
-     * @covers ::withCreatedAt
-     * @covers ::withInfo
-     * @covers ::withExtraMeta
-     * @covers ::getAnnounceUrl
-     * @covers ::getPieceLengthExp
-     * @covers ::getComment
-     * @covers ::getAnnounceList
-     * @covers ::getCreatedBy
-     * @covers ::getCreatedAt
-     * @covers ::getInfo
-     * @covers ::getExtraMeta
-     */
+    #[DataProvider('getDataForSettersAndGetters')]
     public function testSettersAndGetters(string $getter, string $mutator, $value, $initial): void
     {
         $this->assertSame($initial, $this->torrent->$getter(), 'Incorrect initial value');
@@ -125,9 +98,6 @@ class TorrentTest extends TestCase
         $this->assertSame($value, $torrent->$getter(), 'Incorrect value in mutation');
     }
 
-    /**
-     * @covers ::getName
-     */
     public function testGetNameWithNoInfoBlockAdded(): void
     {
         $this->expectException(\RuntimeException::class);
@@ -135,9 +105,6 @@ class TorrentTest extends TestCase
         $this->torrent->getName();
     }
 
-    /**
-     * @covers ::getSize
-     */
     public function testGetSizeWithNoInfoBlockAdded(): void
     {
         $this->expectException(\RuntimeException::class);
@@ -145,9 +112,6 @@ class TorrentTest extends TestCase
         $this->torrent->getSize();
     }
 
-    /**
-     * @covers ::getFileList
-     */
     public function testGetFileListWithNoInfoBlockAdded(): void
     {
         $this->expectException(\RuntimeException::class);
@@ -155,28 +119,16 @@ class TorrentTest extends TestCase
         $this->torrent->getFileList();
     }
 
-    /**
-     * @covers ::withInfo
-     * @covers ::getName
-     */
     public function testGetName(): void
     {
         $this->assertSame('Some name', $this->torrent->withInfo($info = ['name' => 'Some name'])->getName());
     }
 
-    /**
-     * @covers ::withInfo
-     * @covers ::getSize
-     */
     public function testGetSizeWhenLengthIsPresentInTheInfoBlock(): void
     {
         $this->assertSame(123, $this->torrent->withInfo(['length' => 123])->getSize());
     }
 
-    /**
-     * @covers ::withInfo
-     * @covers ::getFileList
-     */
     public function testGetFileListWhenInfoBlockOnlyContainsOneFile(): void
     {
         $fileList = $this->torrent->withInfo(['length' => 123, 'name' => 'some_filename'])->getFileList();
@@ -184,10 +136,6 @@ class TorrentTest extends TestCase
         $this->assertSame('some_filename', $fileList[0]);
     }
 
-    /**
-     * @covers ::withInfo
-     * @covers ::getFileList
-     */
     public function testGetFileList(): void
     {
         $files = [
@@ -198,10 +146,6 @@ class TorrentTest extends TestCase
         $this->assertSame($files, $this->torrent->withInfo(['files' => $files])->getFileList());
     }
 
-    /**
-     * @covers ::withInfo
-     * @covers ::getSize
-     */
     public function testGetSizeWhenInfoBlockHasSeveralFiles(): void
     {
         $files = [
@@ -212,16 +156,6 @@ class TorrentTest extends TestCase
         $this->assertEquals(167, $this->torrent->withInfo(['files' => $files])->getSize());
     }
 
-    /**
-     * @covers ::createFromTorrentFile
-     * @covers ::createFromDictionary
-     * @covers ::getAnnounceUrl
-     * @covers ::getComment
-     * @covers ::getCreatedBy
-     * @covers ::getCreatedAt
-     * @covers ::getSize
-     * @covers ::getFileList
-     */
     public function testCreateFromTorrentFile(): void
     {
         $torrent = Torrent::createFromTorrentFile(__DIR__.'/_files/valid.torrent', new Decoder());
@@ -234,16 +168,6 @@ class TorrentTest extends TestCase
         $this->assertCount(5, $torrent->getFileList());
     }
 
-    /**
-     * @covers ::createFromString
-     * @covers ::createFromDictionary
-     * @covers ::getAnnounceUrl
-     * @covers ::getComment
-     * @covers ::getCreatedBy
-     * @covers ::getCreatedAt
-     * @covers ::getSize
-     * @covers ::getFileList
-     */
     public function testCreateFromTorrentFileString(): void
     {
         $torrent = Torrent::createFromString(\file_get_contents(__DIR__.'/_files/valid.torrent'), new Decoder());
@@ -256,12 +180,6 @@ class TorrentTest extends TestCase
         $this->assertCount(5, $torrent->getFileList());
     }
 
-    /**
-     * @covers ::createFromTorrentFile
-     * @covers ::createFromDictionary
-     * @covers ::getAnnounceUrl
-     * @covers ::getFileList
-     */
     public function testCreateFromTorrentFileWithLists(): void
     {
         $torrent = Torrent::createFromTorrentFile(__DIR__.'/_extra_files/extra.torrent', new Decoder());
@@ -278,10 +196,6 @@ class TorrentTest extends TestCase
         $this->assertCount(1, $torrent->getFileList());
     }
 
-    /**
-     * @covers ::createFromTorrentFile
-     * @covers ::getExtraMeta
-     */
     public function testCreateFromTorrentFileWithExtra(): void
     {
         $torrent = Torrent::createFromTorrentFile(__DIR__.'/_extra_files/extra.torrent', new Decoder());
@@ -296,13 +210,6 @@ class TorrentTest extends TestCase
         $this->assertEquals($webSeeds, $torrent->getExtraMeta());
     }
 
-    /**
-     * @covers ::createFromPath
-     * @covers ::getAnnounceUrl
-     * @covers ::getName
-     * @covers ::getSize
-     * @covers ::getFileList
-     */
     public function testCreateFromPathWhenUsingADirectoryAsArgument(): void
     {
         $path = __DIR__.'/_files';
@@ -315,13 +222,6 @@ class TorrentTest extends TestCase
         $this->assertCount(7, $torrent->getFileList());
     }
 
-    /**
-     * @covers ::createFromPath
-     * @covers ::getAnnounceUrl
-     * @covers ::getName
-     * @covers ::getSize
-     * @covers ::getFileList
-     */
     public function testCreateFromPathWhenUsingAFileAsArgument(): void
     {
         $path = __DIR__.'/_files/valid.torrent';
@@ -334,22 +234,6 @@ class TorrentTest extends TestCase
         $this->assertCount(1, $torrent->getFileList());
     }
 
-    /**
-     * @covers ::createFromPath
-     * @covers ::withComment
-     * @covers ::withCreatedBy
-     * @covers ::withAnnounceList
-     * @covers ::save
-     * @covers ::createFromTorrentFile
-     * @covers ::getAnnounceUrl
-     * @covers ::getComment
-     * @covers ::getCreatedBy
-     * @covers ::getName
-     * @covers ::getSize
-     * @covers ::getFileList
-     * @covers ::getAnnounceList
-     * @covers ::getInfoPart
-     */
     public function testSaveTorrent(): void
     {
         $path = __DIR__.'/_files';
@@ -383,13 +267,6 @@ class TorrentTest extends TestCase
         \unlink($target);
     }
 
-    /**
-     * @covers ::createFromPath
-     * @covers ::withExtraMeta
-     * @covers ::save
-     * @covers ::createFromTorrentFile
-     * @covers ::getExtraMeta
-     */
     public function testSaveWithExtra(): void
     {
         $path = __DIR__.'/_files';
@@ -418,11 +295,6 @@ class TorrentTest extends TestCase
         \unlink($target);
     }
 
-    /**
-     * @covers ::createFromPath
-     * @covers ::withExtraMeta
-     * @covers ::save
-     */
     public function testSaveWithInvalidExtra(): void
     {
         $path = __DIR__.'/_files';
@@ -443,9 +315,6 @@ class TorrentTest extends TestCase
         $torrent->save($target);
     }
 
-    /**
-     * @covers ::save
-     */
     public function testSaveWithNoAnnounce(): void
     {
         $this->expectException(\RuntimeException::class);
@@ -453,11 +322,6 @@ class TorrentTest extends TestCase
         $this->torrent->save(\tempnam(\sys_get_temp_dir(), 'PHP\BitTorrent'));
     }
 
-    /**
-     * @covers ::withAnnounceUrl
-     * @covers ::save
-     * @covers ::getInfoPart
-     */
     public function testSaveWithNoInfoBlock(): void
     {
         $torrent = $this->torrent->withAnnounceUrl('http://tracker');
@@ -466,10 +330,6 @@ class TorrentTest extends TestCase
         $torrent->save(\tempnam(\sys_get_temp_dir(), 'PHP\BitTorrent'));
     }
 
-    /**
-     * @covers ::createFromPath
-     * @covers ::save
-     */
     public function testSaveToUnwritableFile(): void
     {
         $torrent = Torrent::createFromPath(__FILE__, 'http://tracker/');
@@ -478,9 +338,6 @@ class TorrentTest extends TestCase
         $torrent->save(\uniqid('', true).\DIRECTORY_SEPARATOR.\uniqid('', true));
     }
 
-    /**
-     * @covers ::createFromTorrentFile
-     */
     public function testCreateFromTorrentFileWithUnexistingTorrentFile(): void
     {
         $this->expectException(\InvalidArgumentException::class);
@@ -488,9 +345,6 @@ class TorrentTest extends TestCase
         Torrent::createFromTorrentFile('foobar', new Decoder());
     }
 
-    /**
-     * @covers ::createFromPath
-     */
     public function testCreateFromPathWithInvalidPath(): void
     {
         $this->expectException(\InvalidArgumentException::class);
@@ -498,9 +352,6 @@ class TorrentTest extends TestCase
         Torrent::createFromPath('foobar', 'http://trackerurl');
     }
 
-    /**
-     * @covers ::getHash
-     */
     public function testThrowsExceptionWhenTryingToGenerateHashWithEmptyTorrentFile(): void
     {
         $this->expectException(\RuntimeException::class);
@@ -508,9 +359,6 @@ class TorrentTest extends TestCase
         $this->torrent->getHash();
     }
 
-    /**
-     * @covers ::getEncodedHash
-     */
     public function testThrowsExceptionWhenTryingToGenerateEncodedHashWithEmptyTorrentFile(): void
     {
         $this->expectException(\RuntimeException::class);
@@ -518,9 +366,6 @@ class TorrentTest extends TestCase
         $this->torrent->getEncodedHash();
     }
 
-    /**
-     * @covers ::getHash
-     */
     public function testGetHash(): void
     {
         $this->assertSame(
@@ -529,10 +374,6 @@ class TorrentTest extends TestCase
         );
     }
 
-    /**
-     * @covers ::getEncodedHash
-     * @covers ::getHash
-     */
     public function testGetEncodedHash(): void
     {
         $this->assertSame(
@@ -541,9 +382,6 @@ class TorrentTest extends TestCase
         );
     }
 
-    /**
-     * @covers ::getSize
-     */
     public function testGetSizeWithLargeValues(): void
     {
         $decoder = new Decoder();
@@ -551,25 +389,16 @@ class TorrentTest extends TestCase
         $this->assertSame(5368709120, Torrent::createFromTorrentFile(__DIR__.'/_files/large_file.img.torrent', $decoder)->getSize());
     }
 
-    /**
-     * @covers ::isPrivate
-     */
     public function testIsPrivateWhenFlagDoesNotExist(): void
     {
         $this->assertFalse(Torrent::createFromTorrentFile(__DIR__.'/_files/large_files.torrent', new Decoder())->isPrivate());
     }
 
-    /**
-     * @covers ::isPrivate
-     */
     public function testIsPrivateWhenItExistsAndIs1(): void
     {
         $this->assertTrue(Torrent::createFromTorrentFile(__DIR__.'/_files/file_with_private_set_to_1.torrent', new Decoder())->isPrivate());
     }
 
-    /**
-     * @covers ::isPrivate
-     */
     public function testIsPrivateWhenItExistsAndIsNot1(): void
     {
         $this->assertFalse(Torrent::createFromTorrentFile(__DIR__.'/_files/file_with_private_set_to_0.torrent', new Decoder())->isPrivate());

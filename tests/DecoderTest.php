@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace BitTorrent;
 
+use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
-/**
- * @coversDefaultClass \BitTorrent\Decoder
- */
+#[CoversClass(Decoder::class)]
 class DecoderTest extends TestCase
 {
     private Decoder $decoder;
@@ -27,11 +27,7 @@ class DecoderTest extends TestCase
         ];
     }
 
-    /**
-     * @dataProvider getDecodeIntegerData
-     *
-     * @covers ::decodeInteger
-     */
+    #[DataProvider('getDecodeIntegerData')]
     public function testDecoderInteger(string $encoded, int $value): void
     {
         $this->assertEquals($value, $this->decoder->decodeInteger($encoded));
@@ -46,11 +42,7 @@ class DecoderTest extends TestCase
         ];
     }
 
-    /**
-     * @dataProvider getDecodeInvalidIntegerData
-     *
-     * @covers ::decodeInteger
-     */
+    #[DataProvider('getDecodeInvalidIntegerData')]
     public function testDecodeInvalidInteger(string $value): void
     {
         $this->expectException(\InvalidArgumentException::class);
@@ -58,9 +50,6 @@ class DecoderTest extends TestCase
         $this->decoder->decodeInteger($value);
     }
 
-    /**
-     * @covers ::decodeInteger
-     */
     public function testDecodeStringAsInteger(): void
     {
         $this->expectException(\InvalidArgumentException::class);
@@ -68,9 +57,6 @@ class DecoderTest extends TestCase
         $this->decoder->decodeInteger('4:spam');
     }
 
-    /**
-     * @covers ::decodeInteger
-     */
     public function testDecodePartialInteger(): void
     {
         $this->expectException(\InvalidArgumentException::class);
@@ -90,19 +76,12 @@ class DecoderTest extends TestCase
         ];
     }
 
-    /**
-     * @dataProvider getDecodeStringData
-     *
-     * @covers ::decodeString
-     */
+    #[DataProvider('getDecodeStringData')]
     public function testDecodeString(string $encoded, string $value): void
     {
         $this->assertSame($value, $this->decoder->decodeString($encoded));
     }
 
-    /**
-     * @covers ::decodeString
-     */
     public function testDecodeInvalidString(): void
     {
         $this->expectException(\InvalidArgumentException::class);
@@ -110,9 +89,6 @@ class DecoderTest extends TestCase
         $this->decoder->decodeString('4spam');
     }
 
-    /**
-     * @covers ::decodeString
-     */
     public function testDecodeStringWithInvalidLength(): void
     {
         $this->expectException(\InvalidArgumentException::class);
@@ -130,19 +106,12 @@ class DecoderTest extends TestCase
         ];
     }
 
-    /**
-     * @dataProvider getDecodeListData
-     *
-     * @covers ::decodeList
-     */
+    #[DataProvider('getDecodeListData')]
     public function testDecodeList(string $encoded, array $value): void
     {
         $this->assertEquals($value, $this->decoder->decodeList($encoded));
     }
 
-    /**
-     * @covers ::decodeList
-     */
     public function testDecodeInvalidList(): void
     {
         $this->expectException(\InvalidArgumentException::class);
@@ -157,19 +126,12 @@ class DecoderTest extends TestCase
         ];
     }
 
-    /**
-     * @dataProvider getDecodeDictionaryData
-     *
-     * @covers ::decodeDictionary
-     */
+    #[DataProvider('getDecodeDictionaryData')]
     public function testDecodeDictionary(string $encoded, array $value): void
     {
         $this->assertSame($value, $this->decoder->decodeDictionary($encoded));
     }
 
-    /**
-     * @covers ::decodeDictionary
-     */
     public function testDecodeInvalidDictionary(): void
     {
         $this->expectException(\InvalidArgumentException::class);
@@ -190,20 +152,12 @@ class DecoderTest extends TestCase
         ];
     }
 
-    /**
-     * @dataProvider getGenericDecodeData
-     *
-     * @covers ::__construct
-     * @covers ::decode
-     */
+    #[DataProvider('getGenericDecodeData')]
     public function testGenericDecode(string $encoded, $value): void
     {
         $this->assertEquals($value, $this->decoder->decode($encoded));
     }
 
-    /**
-     * @covers ::decode
-     */
     public function testGenericDecodeWithInvalidData(): void
     {
         $this->expectException(\InvalidArgumentException::class);
@@ -211,10 +165,6 @@ class DecoderTest extends TestCase
         $this->decoder->decode('foo');
     }
 
-    /**
-     * @covers ::decodeFile
-     * @covers ::decodeFileContents
-     */
     public function testDecodeTorrentFileStrictWithMissingAnnounce(): void
     {
         $this->expectException(\InvalidArgumentException::class);
@@ -222,10 +172,6 @@ class DecoderTest extends TestCase
         $this->decoder->decodeFile(__DIR__.'/_files/testMissingAnnounce.torrent', true);
     }
 
-    /**
-     * @covers ::decodeFile
-     * @covers ::decodeFileContents
-     */
     public function testDecodeTorrentFileStrictWithMissingInfo(): void
     {
         $this->expectException(\InvalidArgumentException::class);
@@ -233,9 +179,6 @@ class DecoderTest extends TestCase
         $this->decoder->decodeFile(__DIR__.'/_files/testMissingInfo.torrent', true);
     }
 
-    /**
-     * @covers ::decodeFile
-     */
     public function testDecodeNonReadableFile(): void
     {
         $this->expectException(\InvalidArgumentException::class);
@@ -243,10 +186,6 @@ class DecoderTest extends TestCase
         $this->decoder->decodeFile(__DIR__.'/nonExistingFile');
     }
 
-    /**
-     * @covers ::decodeFile
-     * @covers ::decodeFileContents
-     */
     public function testDecodeFileWithStrictChecksEnabled(): void
     {
         $list = $this->decoder->decodeFile(__DIR__.'/_files/valid.torrent', true);

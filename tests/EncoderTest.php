@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace BitTorrent;
 
+use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
-/**
- * @coversDefaultClass \BitTorrent\Encoder
- */
+#[CoversClass(Encoder::class)]
 class EncoderTest extends TestCase
 {
     private Encoder $encoder;
@@ -30,11 +30,7 @@ class EncoderTest extends TestCase
         ];
     }
 
-    /**
-     * @dataProvider getEncodeIntegerData
-     *
-     * @covers ::encodeInteger
-     */
+    #[DataProvider('getEncodeIntegerData')]
     public function testEncodeInteger(int $value, string $encoded): void
     {
         $this->assertSame($encoded, $this->encoder->encodeInteger($value));
@@ -52,11 +48,7 @@ class EncoderTest extends TestCase
         ];
     }
 
-    /**
-     * @dataProvider getEncodeStringData
-     *
-     * @covers ::encodeString
-     */
+    #[DataProvider('getEncodeStringData')]
     public function testEncodeString(string $value, string $encoded): void
     {
         $this->assertSame($encoded, $this->encoder->encodeString($value));
@@ -72,11 +64,7 @@ class EncoderTest extends TestCase
         ];
     }
 
-    /**
-     * @dataProvider getEncodeListData
-     *
-     * @covers ::encodeList
-     */
+    #[DataProvider('getEncodeListData')]
     public function testEncodeList(array $value, string $encoded): void
     {
         $this->assertSame($encoded, $this->encoder->encodeList($value));
@@ -94,11 +82,7 @@ class EncoderTest extends TestCase
         ];
     }
 
-    /**
-     * @dataProvider getEncodeDictionaryData
-     *
-     * @covers ::encodeDictionary
-     */
+    #[DataProvider('getEncodeDictionaryData')]
     public function testEncodeDictionary(array $value, string $encoded): void
     {
         $this->assertSame($encoded, $this->encoder->encodeDictionary($value));
@@ -117,20 +101,12 @@ class EncoderTest extends TestCase
         ];
     }
 
-    /**
-     * @dataProvider getEncodeData
-     *
-     * @covers ::encode
-     */
+    #[DataProvider('getEncodeData')]
     public function testEncodeUsingGenericMethod($value, string $encoded): void
     {
         $this->assertSame($encoded, $this->encoder->encode($value));
     }
 
-    /**
-     * @covers ::__construct
-     * @covers ::encode
-     */
     public function testCanEncodeEmptyArraysAsDictionaries(): void
     {
         $encoder = new Encoder();
