@@ -9,7 +9,7 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 #[CoversClass(Encoder::class)]
-class EncoderTest extends TestCase
+final class EncoderTest extends TestCase
 {
     private Encoder $encoder;
 

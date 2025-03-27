@@ -9,7 +9,7 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 #[CoversClass(Torrent::class)]
-class TorrentTest extends TestCase
+final class TorrentTest extends TestCase
 {
     private Torrent $torrent;
 

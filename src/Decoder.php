@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace BitTorrent;
 
-class Decoder implements DecoderInterface
+final readonly class Decoder implements DecoderInterface
 {
     private EncoderInterface $encoder;
 

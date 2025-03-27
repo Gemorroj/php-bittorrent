@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace BitTorrent;
 
-class Encoder implements EncoderInterface
+final class Encoder implements EncoderInterface
 {
     /**
      * Parameters for the encoder.

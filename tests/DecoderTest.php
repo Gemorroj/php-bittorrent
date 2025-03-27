@@ -9,7 +9,7 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 #[CoversClass(Decoder::class)]
-class DecoderTest extends TestCase
+final class DecoderTest extends TestCase
 {
     private Decoder $decoder;
 

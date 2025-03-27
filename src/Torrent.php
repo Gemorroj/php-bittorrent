@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace BitTorrent;
 
-class Torrent
+final class Torrent
 {
     /**
      * Internal encoder.
