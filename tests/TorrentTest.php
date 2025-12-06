@@ -28,7 +28,7 @@ final class TorrentTest extends TestCase
     public function testSetAndGetEncoder(): void
     {
         $encoder = $this->createMock(EncoderInterface::class);
-        $torrent = (new Torrent('http://sometracker'))->withEncoder($encoder);
+        $torrent = new Torrent('http://sometracker')->withEncoder($encoder);
         $this->assertInstanceOf(EncoderInterface::class, $torrent->getEncoder());
     }
 
