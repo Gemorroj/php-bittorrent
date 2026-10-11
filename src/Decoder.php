@@ -4,23 +4,17 @@ declare(strict_types=1);
 
 namespace BitTorrent;
 
-final readonly class Decoder implements DecoderInterface
+final class Decoder implements DecoderInterface
 {
-    private EncoderInterface $encoder;
-
     /**
-     * Class constructor.
+     * Decode a torrent file.
      *
-     * @param EncoderInterface|null $encoder Optional encoder instance
+     * @param bool $strict When true, the file must contain a non-empty "announce" and "info";
+     *                     see {@see decodeFileContents()}
      */
-    public function __construct(?EncoderInterface $encoder = null)
+    public function decodeFile(string $path, bool $strict = false): DecodedDictionary
     {
-        $this->encoder = $encoder ?? new Encoder();
-    }
-
-    public function decodeFile(string $path, bool $strict = false): array
-    {
-        $contents = @\file_get_contents($path, true);
+        $contents = @\file_get_contents($path);
         if (false === $contents) {
             throw new \InvalidArgumentException(\sprintf('File %s does not exist or can not be read.', $path));
         }
@@ -28,130 +22,215 @@ final readonly class Decoder implements DecoderInterface
         return $this->decodeFileContents($contents, $strict);
     }
 
-    public function decodeFileContents(string $contents, bool $strict = false): array
+    /**
+     * Decode the contents of a torrent file.
+     *
+     * @param bool $strict When true, the decoded dictionary must contain a non-empty "announce"
+     *                     string and a non-empty "info" dictionary (the two keys every torrent
+     *                     must have); otherwise an \InvalidArgumentException is thrown. When false,
+     *                     the dictionary is returned as is without any validation
+     */
+    public function decodeFileContents(string $contents, bool $strict = false): DecodedDictionary
     {
-        $dictionary = $this->decodeDictionary($contents);
+        $offset = 0;
+        $ranges = [];
+        $dictionary = $this->parseDictionary($contents, $offset, $ranges);
+        $this->assertFullyDecoded($contents, $offset);
 
         if ($strict) {
-            if (!isset($dictionary['announce']) || (!\is_string($dictionary['announce']) && !empty($dictionary['announce']))) {
+            // A torrent is only valid when it points to a tracker and carries the "info" dictionary
+            if (!isset($dictionary['announce']) || !\is_string($dictionary['announce']) || '' === $dictionary['announce']) {
                 throw new \InvalidArgumentException('Missing or empty "announce" key.');
             }
 
-            if (!isset($dictionary['info']) || (!\is_array($dictionary['info']) && !empty($dictionary['info']))) {
+            if (!isset($dictionary['info']) || !\is_array($dictionary['info']) || [] === $dictionary['info']) {
                 throw new \InvalidArgumentException('Missing or empty "info" key.');
             }
         }
 
-        return $dictionary;
+        return new DecodedDictionary($dictionary, $contents, $ranges);
     }
 
     public function decode(string $string): int|string|array
     {
-        if ('i' === $string[0]) {
-            return $this->decodeInteger($string);
+        $offset = 0;
+        $value = $this->decodeAt($string, $offset);
+        $this->assertFullyDecoded($string, $offset);
+
+        return $value;
+    }
+
+    public function decodeInteger(string $integer): int
+    {
+        if ('i' !== ($integer[0] ?? '')) {
+            throw new \InvalidArgumentException('Invalid integer. Integers must start wth "i" and end with "e".');
         }
 
-        if ('l' === $string[0]) {
-            return $this->decodeList($string);
+        $offset = 0;
+        $value = $this->parseInteger($integer, $offset);
+        $this->assertFullyDecoded($integer, $offset);
+
+        return $value;
+    }
+
+    public function decodeString(string $string): string
+    {
+        $offset = 0;
+        $value = $this->parseString($string, $offset);
+        $this->assertFullyDecoded($string, $offset);
+
+        return $value;
+    }
+
+    public function decodeList(string $list): array
+    {
+        $offset = 0;
+        $value = $this->parseList($list, $offset);
+        $this->assertFullyDecoded($list, $offset);
+
+        return $value;
+    }
+
+    public function decodeDictionary(string $dictionary): DecodedDictionary
+    {
+        $offset = 0;
+        $ranges = [];
+        $values = $this->parseDictionary($dictionary, $offset, $ranges);
+        $this->assertFullyDecoded($dictionary, $offset);
+
+        return new DecodedDictionary($values, $dictionary, $ranges);
+    }
+
+    private function assertFullyDecoded(string $string, int $offset): void
+    {
+        // Trailing whitespace (a common newline at the end of a file) is tolerated, anything else is not
+        if ('' !== \trim(\substr($string, $offset))) {
+            throw new \InvalidArgumentException('Parameter is not correctly encoded.');
+        }
+    }
+
+    private function decodeAt(string $string, int &$offset): int|string|array
+    {
+        $character = $string[$offset] ?? '';
+
+        if ('i' === $character) {
+            return $this->parseInteger($string, $offset);
         }
 
-        if ('d' === $string[0]) {
-            return $this->decodeDictionary($string);
+        if ('l' === $character) {
+            return $this->parseList($string, $offset);
         }
 
-        if (\preg_match('/^\d+:/', $string)) {
-            return $this->decodeString($string);
+        if ('d' === $character) {
+            return $this->parseDictionary($string, $offset);
+        }
+
+        if ('' !== $character && $character >= '0' && $character <= '9') {
+            return $this->parseString($string, $offset);
         }
 
         throw new \InvalidArgumentException('Parameter is not correctly encoded.');
     }
 
-    public function decodeInteger(string $integer): int
+    private function parseInteger(string $string, int &$offset): int
     {
-        if ('i' !== $integer[0] || (!$ePos = \strpos($integer, 'e'))) {
+        $end = \strpos($string, 'e', $offset + 1);
+
+        if (false === $end) {
             throw new \InvalidArgumentException('Invalid integer. Integers must start wth "i" and end with "e".');
         }
 
-        $integer = \substr($integer, 1, $ePos - 1);
-        $len = \strlen($integer);
+        $value = \substr($string, $offset + 1, $end - $offset - 1);
 
-        if (('0' === $integer[0] && $len > 1) || ('-' === $integer[0] && '0' === $integer[1]) || !\is_numeric($integer)) {
+        if (1 !== \preg_match('/^(0|-?[1-9]\d*)$/', $value)) {
             throw new \InvalidArgumentException('Invalid integer value.');
         }
 
-        return (int) $integer;
+        $offset = $end + 1;
+
+        return (int) $value;
     }
 
-    public function decodeString(string $string): string
+    private function parseString(string $string, int &$offset): string
     {
-        $stringParts = \explode(':', $string, 2);
+        $colon = \strpos($string, ':', $offset);
 
-        if (2 !== \count($stringParts)) {
+        if (false === $colon) {
             throw new \InvalidArgumentException('Invalid string. Strings consist of two parts separated by ":".');
         }
 
-        $length = (int) $stringParts[0];
-        $lengthLen = \strlen((string) $length);
+        $lengthPart = \substr($string, $offset, $colon - $offset);
 
-        if (($lengthLen + 1 + $length) > \strlen($string)) {
+        if ('' === $lengthPart || \strspn($lengthPart, '0123456789') !== \strlen($lengthPart)) {
+            throw new \InvalidArgumentException('Invalid string. Strings consist of two parts separated by ":".');
+        }
+
+        $length = (int) $lengthPart;
+        $dataOffset = $colon + 1;
+
+        if ($dataOffset + $length > \strlen($string)) {
             throw new \InvalidArgumentException('The length of the string does not match the prefix of the encoded data.');
         }
 
-        return \substr($string, $lengthLen + 1, $length);
+        $offset = $dataOffset + $length;
+
+        return \substr($string, $dataOffset, $length);
     }
 
-    public function decodeList(string $list): array
+    private function parseList(string $string, int &$offset): array
     {
-        if ('l' !== $list[0]) {
+        if ('l' !== ($string[$offset] ?? '')) {
             throw new \InvalidArgumentException('Parameter is not an encoded list.');
         }
 
-        $ret = [];
+        ++$offset;
+        $list = [];
 
-        $length = \strlen($list);
-        $i = 1;
-
-        while ($i < $length) {
-            if ('e' === $list[$i]) {
-                break;
+        while (true) {
+            if (!isset($string[$offset])) {
+                throw new \InvalidArgumentException('Invalid list. Missing the terminating "e".');
             }
 
-            $part = \substr($list, $i);
-            $decodedPart = $this->decode($part);
-            $ret[] = $decodedPart;
-            $i += \strlen($this->encoder->encode($decodedPart));
-        }
+            if ('e' === $string[$offset]) {
+                ++$offset;
 
-        return $ret;
+                return $list;
+            }
+
+            $list[] = $this->decodeAt($string, $offset);
+        }
     }
 
-    public function decodeDictionary(string $dictionary): array
+    /**
+     * @param array<string, array{int, int}>|null $ranges When provided, the offset and length of every value is collected here
+     */
+    private function parseDictionary(string $string, int &$offset, ?array &$ranges = null): array
     {
-        if ('d' !== $dictionary[0]) {
+        if ('d' !== ($string[$offset] ?? '')) {
             throw new \InvalidArgumentException('Parameter is not an encoded dictionary.');
         }
 
-        $length = \strlen($dictionary);
-        $ret = [];
-        $i = 1;
+        ++$offset;
+        $dictionary = [];
 
-        while ($i < $length) {
-            if ('e' === $dictionary[$i]) {
-                break;
+        while (true) {
+            if (!isset($string[$offset])) {
+                throw new \InvalidArgumentException('Invalid dictionary. Missing the terminating "e".');
             }
 
-            $keyPart = \substr($dictionary, $i);
-            $key = $this->decodeString($keyPart);
-            $keyPartLength = \strlen($this->encoder->encodeString($key));
+            if ('e' === $string[$offset]) {
+                ++$offset;
 
-            $valuePart = \substr($dictionary, $i + $keyPartLength);
-            $value = $this->decode($valuePart);
-            $valuePartLength = \strlen($this->encoder->encode($value));
+                return $dictionary;
+            }
 
-            $ret[$key] = $value;
-            $i += ($keyPartLength + $valuePartLength);
+            $key = $this->parseString($string, $offset);
+            $valueOffset = $offset;
+            $dictionary[$key] = $this->decodeAt($string, $offset);
+
+            if (null !== $ranges) {
+                $ranges[$key] = [$valueOffset, $offset - $valueOffset];
+            }
         }
-
-        return $ret;
     }
 }

@@ -36,7 +36,7 @@ final class Torrent
     /**
      * Optional string that informs clients who or what created this torrent.
      */
-    private ?string $createdBy = 'PHP BitTorrent';
+    private string $createdBy = 'PHP BitTorrent';
 
     /**
      * The unix timestamp of when the torrent was created.
@@ -52,6 +52,13 @@ final class Torrent
      * Any non-standard fields in the torrent meta data.
      */
     private ?array $extraMeta = null;
+
+    /**
+     * Raw bencoded bytes of the info dictionary when the torrent was loaded from a file.
+     *
+     * Kept so that the info hash is computed from the original data instead of a re-encoded copy.
+     */
+    private ?string $rawInfo = null;
 
     /**
      * Class constructor.
@@ -185,7 +192,7 @@ final class Torrent
     /**
      * Get the created by string.
      */
-    public function getCreatedBy(): ?string
+    public function getCreatedBy(): string
     {
         return $this->createdBy;
     }
@@ -216,6 +223,7 @@ final class Torrent
     {
         $new = clone $this;
         $new->info = $info;
+        $new->rawInfo = null;
 
         return $new;
     }
@@ -226,6 +234,17 @@ final class Torrent
     public function getInfo(): ?array
     {
         return $this->info;
+    }
+
+    /**
+     * Set the raw bencoded bytes of the info dictionary.
+     */
+    private function withRawInfo(string $rawInfo): self
+    {
+        $new = clone $this;
+        $new->rawInfo = $rawInfo;
+
+        return $new;
     }
 
     /**
@@ -255,6 +274,7 @@ final class Torrent
      *
      * @param string $path The path to save the file to
      *
+     * @throws \InvalidArgumentException
      * @throws \RuntimeException
      *
      * @return bool Returns true on success or false on failure
@@ -271,8 +291,9 @@ final class Torrent
 
         $torrent = [
             'announce' => $announceUrl,
-            'creation date' => $this->getCreatedAt() ?: \time(),
+            'creation date' => $this->getCreatedAt() ?? \time(),
             'info' => $this->getInfoPart(),
+            'created by' => $this->getCreatedBy(),
         ];
 
         if (null !== $announceList = $this->getAnnounceList()) {
@@ -281,10 +302,6 @@ final class Torrent
 
         if (null !== $comment = $this->getComment()) {
             $torrent['comment'] = $comment;
-        }
-
-        if (null !== $createdBy = $this->getCreatedBy()) {
-            $torrent['created by'] = $createdBy;
         }
 
         if (null !== ($extra = $this->getExtraMeta())) {
@@ -299,21 +316,40 @@ final class Torrent
 
         $encodedData = $this->encoder->encodeDictionary($torrent);
 
-        return false !== \file_put_contents($path, $encodedData);
+        return false !== \file_put_contents($path, $encodedData, \LOCK_EX);
     }
 
     /**
-     * Get file list.
+     * Get the list of files in the torrent.
+     *
+     * Every entry contains the file size ("length") and its "path" as an array of path components.
+     * Single file torrents are represented as a list with a single entry as well.
+     *
+     * @return array<int, array{length: int, path: array<int, string>}>
      */
     public function getFileList(): array
     {
         $info = $this->getInfoPart();
 
         if (isset($info['length'])) {
-            return [$info['name']];
+            return [
+                [
+                    'length' => (int) $info['length'],
+                    'path' => [(string) ($info['name'] ?? '')],
+                ],
+            ];
         }
 
-        return (array) $info['files'];
+        $files = [];
+
+        foreach ((array) ($info['files'] ?? []) as $file) {
+            $files[] = [
+                'length' => (int) $file['length'],
+                'path' => (array) $file['path'],
+            ];
+        }
+
+        return $files;
     }
 
     /**
@@ -327,11 +363,13 @@ final class Torrent
             return (int) $info['length'];
         }
 
-        $lengths = \array_map(static function (array $file): int {
-            return (int) $file['length'];
-        }, $this->getFileList());
+        $size = 0;
 
-        return (int) \array_sum($lengths);
+        foreach ($this->getFileList() as $file) {
+            $size += $file['length'];
+        }
+
+        return $size;
     }
 
     /**
@@ -339,7 +377,7 @@ final class Torrent
      */
     public function getName(): string
     {
-        return (string) $this->getInfoPart()['name'];
+        return (string) ($this->getInfoPart()['name'] ?? '');
     }
 
     /**
@@ -349,10 +387,9 @@ final class Torrent
      */
     public function getHash(bool $raw = false): string
     {
-        return \sha1(
-            $this->encoder->encodeDictionary($this->getInfoPart()),
-            $raw
-        );
+        $info = $this->rawInfo ?? $this->encoder->encodeDictionary($this->getInfoPart());
+
+        return \sha1($info, $raw);
     }
 
     /**
@@ -360,7 +397,7 @@ final class Torrent
      */
     public function getEncodedHash(): string
     {
-        return \urlencode($this->getHash(true));
+        return \rawurlencode($this->getHash(true));
     }
 
     /**
@@ -389,24 +426,40 @@ final class Torrent
 
     /**
      * Create torrent instance from a string.
+     *
+     * @param bool $strict When true, the contents must contain a non-empty "announce" and "info"
+     *                     (see DecoderInterface::decodeFileContents()); otherwise decoding fails
      */
     public static function createFromString(string $contents, DecoderInterface $decoder, bool $strict = false): self
     {
-        return static::createFromDictionary($decoder->decodeFileContents($contents, $strict));
+        return static::createFromDecoded($decoder->decodeFileContents($contents, $strict));
     }
 
     /**
      * Create torrent instance from a torrent file.
+     *
+     * @param bool $strict When true, the file must contain a non-empty "announce" and "info"
+     *                     (see DecoderInterface::decodeFile()); otherwise decoding fails
      */
     public static function createFromTorrentFile(string $path, DecoderInterface $decoder, bool $strict = false): self
     {
-        return static::createFromDictionary($decoder->decodeFile($path, $strict));
+        return static::createFromDecoded($decoder->decodeFile($path, $strict));
+    }
+
+    /**
+     * Create torrent instance from a decoded dictionary.
+     */
+    private static function createFromDecoded(DecodedDictionary $decoded): self
+    {
+        return static::createFromDictionary($decoded->getValues(), $decoded->getEncodedValue('info'));
     }
 
     /**
      * Create torrent instance from a dictionary.
+     *
+     * @param string|null $rawInfo Raw bencoded bytes of the info dictionary, when available
      */
-    public static function createFromDictionary(array $dictionary): self
+    public static function createFromDictionary(array $dictionary, ?string $rawInfo = null): self
     {
         $torrent = new self();
 
@@ -442,6 +495,10 @@ final class Torrent
 
         if (\count($dictionary) > 0) {
             $torrent = $torrent->withExtraMeta($dictionary);
+        }
+
+        if (null !== $rawInfo) {
+            $torrent = $torrent->withRawInfo($rawInfo);
         }
 
         return $torrent;
@@ -486,33 +543,18 @@ final class Torrent
         ];
 
         $pieces = [];
+        $pieceLength = (int) $info['piece length'];
 
         if ($pathIsFile) {
-            $filePath = \dirname($absolutePath);
             $info['name'] = $files[0]['filename'];
             $info['length'] = $files[0]['filesize'];
-            $position = 0;
-            $fp = \fopen($p = $filePath.\DIRECTORY_SEPARATOR.$files[0]['filename'], 'r');
 
-            if (false === $fp) {
-                throw new \RuntimeException(\sprintf('Failed to open file: %s', $p));
-            }
+            $part = '';
+            self::appendPieces($absolutePath, $pieceLength, 0, $part, $pieces);
 
-            while ($position < $info['length']) {
-                /** @var string */
-                $part = \fread($fp, (int) \min($info['piece length'], $info['length'] - $position));
+            if ('' !== $part) {
                 $pieces[] = \sha1($part, true);
-
-                $position += $info['piece length'];
-
-                if ($position > $info['length']) {
-                    $position = $info['length'];
-                }
             }
-
-            \fclose($fp);
-
-            $pieces = \implode('', $pieces);
         } else {
             $info['name'] = \basename($absolutePath);
 
@@ -523,52 +565,64 @@ final class Torrent
             $part = '';
             $done = 0;
 
-            // Loop through all the files in the $files array to generate the pieces and the other
-            // stuff in the info part of the torrent. Note that two files may be part of the same
-            // piece since btmakemetafile uses cyclic buffers
+            // A piece may span multiple files, so pieces are computed over a continuous byte stream
             foreach ($files as $file) {
                 $filename = $file['filename'];
-                $filesize = $file['filesize'];
 
                 $info['files'][] = [
-                    'length' => $filesize,
+                    'length' => $file['filesize'],
                     'path' => \explode(\DIRECTORY_SEPARATOR, $filename),
                 ];
 
-                $position = 0;
-                $fp = \fopen($p = $absolutePath.\DIRECTORY_SEPARATOR.$filename, 'r');
-
-                if (false === $fp) {
-                    throw new \RuntimeException(\sprintf('Failed to open file: %s', $p));
-                }
-
-                while ($position < $filesize) {
-                    $bytes = (int) \min($filesize - $position, $info['piece length'] - $done);
-                    $part .= \fread($fp, $bytes);
-
-                    $done += $bytes;
-                    $position += $bytes;
-
-                    if ($done === $info['piece length']) {
-                        $pieces[] = \sha1($part, true);
-                        $part = '';
-                        $done = 0;
-                    }
-                }
-
-                \fclose($fp);
+                $done = self::appendPieces($absolutePath.\DIRECTORY_SEPARATOR.$filename, $pieceLength, $done, $part, $pieces);
             }
 
-            if ($done > 0) {
+            if ('' !== $part) {
                 $pieces[] = \sha1($part, true);
             }
-
-            $pieces = \implode('', $pieces);
         }
 
-        $info['pieces'] = $pieces;
+        $info['pieces'] = \implode('', $pieces);
         \ksort($info);
 
         return $torrent->withInfo($info);
+    }
+
+    /**
+     * Read a file and append all complete pieces to the given list.
+     *
+     * @param array<int, string> $pieces List of raw sha1 hashes
+     * @param string             $part   Buffer of a partially read piece (passed by reference)
+     *
+     * @return int The number of buffered bytes in the partial piece after reading
+     */
+    private static function appendPieces(string $path, int $pieceLength, int $done, string &$part, array &$pieces): int
+    {
+        $fp = \fopen($path, 'r');
+
+        if (false === $fp) {
+            throw new \RuntimeException(\sprintf('Failed to open file: %s', $path));
+        }
+
+        while (!\feof($fp)) {
+            $chunk = \fread($fp, \max(1, $pieceLength - $done));
+
+            if (false === $chunk || '' === $chunk) {
+                break;
+            }
+
+            $part .= $chunk;
+            $done += \strlen($chunk);
+
+            if ($done === $pieceLength) {
+                $pieces[] = \sha1($part, true);
+                $part = '';
+                $done = 0;
+            }
+        }
+
+        \fclose($fp);
+
+        return $done;
     }
 }

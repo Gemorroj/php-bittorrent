@@ -90,7 +90,7 @@ final class TorrentTest extends TestCase
     }
 
     #[DataProvider('getDataForSettersAndGetters')]
-    public function testSettersAndGetters(string $getter, string $mutator, $value, $initial): void
+    public function testSettersAndGetters(string $getter, string $mutator, mixed $value, mixed $initial): void
     {
         $this->assertSame($initial, $this->torrent->$getter(), 'Incorrect initial value');
         $torrent = $this->torrent->$mutator($value);
@@ -133,7 +133,9 @@ final class TorrentTest extends TestCase
     {
         $fileList = $this->torrent->withInfo(['length' => 123, 'name' => 'some_filename'])->getFileList();
         $this->assertCount(1, $fileList);
-        $this->assertSame('some_filename', $fileList[0]);
+        $this->assertSame([
+            ['length' => 123, 'path' => ['some_filename']],
+        ], $fileList);
     }
 
     public function testGetFileList(): void
@@ -170,7 +172,9 @@ final class TorrentTest extends TestCase
 
     public function testCreateFromTorrentFileString(): void
     {
-        $torrent = Torrent::createFromString(\file_get_contents(__DIR__.'/_files/valid.torrent'), new Decoder());
+        $contents = \file_get_contents(__DIR__.'/_files/valid.torrent');
+        $this->assertIsString($contents);
+        $torrent = Torrent::createFromString($contents, new Decoder());
 
         $this->assertSame('http://trackerurl', $torrent->getAnnounceUrl());
         $this->assertSame('This is a comment', $torrent->getComment());
@@ -372,6 +376,17 @@ final class TorrentTest extends TestCase
             'c717bfd30211a5e36c94cabaab3b3ca0dc89f91a',
             Torrent::createFromTorrentFile(__DIR__.'/_files/valid.torrent', new Decoder())->getHash()
         );
+    }
+
+    public function testGetHashUsesOriginalInfoBytes(): void
+    {
+        // The info dictionary below has non-canonical (unsorted) keys, so a re-encoded copy would
+        // produce a different hash than the bytes actually present in the torrent.
+        $contents = 'd8:announce3:url4:infod4:name4:test6:lengthi1eee';
+
+        $torrent = Torrent::createFromString($contents, new Decoder());
+
+        $this->assertSame(\sha1('d4:name4:test6:lengthi1ee'), $torrent->getHash());
     }
 
     public function testGetEncodedHash(): void

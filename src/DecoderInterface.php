@@ -9,36 +9,32 @@ interface DecoderInterface
     /**
      * Decode a file.
      *
-     * This method can use a strict method that requires certain elements to be present in the
-     * encoded file. The two required elements are:
-     *
-     * - announce
-     * - info
-     *
-     * By default the method does not check for these elements.
-     *
      * @param string $path   Path to the torrent file we want to decode
-     * @param bool   $strict if set to true this method will check for certain elements in the
-     *                       dictionary
+     * @param bool   $strict When true, the decoded dictionary must contain a non-empty "announce"
+     *                       string and a non-empty "info" dictionary; otherwise an
+     *                       \InvalidArgumentException is thrown. When false, no such validation is
+     *                       performed and any decoded dictionary is returned as is.
      *
      * @throws \InvalidArgumentException
-     *
-     * @return array Returns the decoded version of the file as an array
      */
-    public function decodeFile(string $path, bool $strict = false): array;
+    public function decodeFile(string $path, bool $strict = false): DecodedDictionary;
 
     /**
      * Decode the contents of a file as a string.
      *
+     * The returned object exposes both the decoded values and the original encoded bytes of every
+     * top level value, so that, for instance, the "info" dictionary can be hashed exactly as it was
+     * found in the file instead of hashing a re-encoded copy.
+     *
      * @param string $contents The contents of a torrent file
-     * @param bool   $strict   if set to true this method will check for certain elements in the
-     *                         dictionary
+     * @param bool   $strict   When true, the decoded dictionary must contain a non-empty "announce"
+     *                         string and a non-empty "info" dictionary; otherwise an
+     *                         \InvalidArgumentException is thrown. When false, no such validation is
+     *                         performed and any decoded dictionary is returned as is.
      *
      * @throws \InvalidArgumentException
-     *
-     * @return array Returns the decoded version of the file as an array
      */
-    public function decodeFileContents(string $contents, bool $strict = false): array;
+    public function decodeFileContents(string $contents, bool $strict = false): DecodedDictionary;
 
     /**
      * Decode any bittorrent encoded string.
@@ -90,8 +86,6 @@ interface DecoderInterface
      * @param string $dictionary Encoded dictionary
      *
      * @throws \InvalidArgumentException
-     *
-     * @return array Returns an associative array
      */
-    public function decodeDictionary(string $dictionary): array;
+    public function decodeDictionary(string $dictionary): DecodedDictionary;
 }

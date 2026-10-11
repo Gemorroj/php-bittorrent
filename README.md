@@ -39,7 +39,7 @@ $decoder = new BitTorrent\Decoder();
 var_dump($decoder->decodeString('11:Some string')); // string(11) "Some string"
 var_dump($decoder->decodeInteger('i42e')); // int(42)
 var_dump($decoder->decodeList('li1ei2ei3ee'); // array(3) { [0]=> int(1) [1]=> int(2) [2]=> int(3) }
-var_dump($decoder->decodeDictionary('d3:foo3:bar3:bar3:fooe'); // array(2) { ["foo"]=> string(3) "bar" ["bar"]=> string(3) "foo" }
+var_dump($decoder->decodeDictionary('d3:foo3:bar3:bar3:fooe')->getValues()); // array(2) { ["foo"]=> string(3) "bar" ["bar"]=> string(3) "foo" }
 ```
 
 There is also a convenience method called `decode` that can decode any BitTorrent encoded data.
@@ -53,7 +53,10 @@ The decoder class also has a method for decoding a torrent file (which is an enc
 require 'vendor/autoload.php';
 
 $decoder = new BitTorrent\Decoder();
-$decodedFile = $decoder->decodeFile('/path/to/file.torrent');
+$torrent = $decoder->decodeFile('/path/to/file.torrent');
+
+var_dump($torrent->getValues());              // the decoded dictionary as an array
+var_dump($torrent->getEncodedValue('info'));  // original bytes of the "info" value
 ```
 
 ### Create new torrent files and open existing ones
@@ -76,9 +79,9 @@ The class can also load a torrent file:
 <?php
 require 'vendor/autoload.php';
 
-$torrent = BitTorrent\Torrent::createFromTorrentFile('/path/to/file.torrent')
-    ->withAnnounce('http://tracker/announce.php') // Override announce in original file
-    ->withComment('Some comment'); // Override commend in original file
+$torrent = BitTorrent\Torrent::createFromTorrentFile('/path/to/file.torrent', new BitTorrent\Decoder())
+    ->withAnnounceUrl('http://tracker/announce.php') // Override announce in original file
+    ->withComment('Some comment'); // Override comment in original file
 
 $torrent->save('/save/to/path/file.torrent'); // Save to a new file
 ```

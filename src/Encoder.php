@@ -7,21 +7,18 @@ namespace BitTorrent;
 final class Encoder implements EncoderInterface
 {
     /**
-     * Parameters for the encoder.
+     * Set to true to encode empty arrays as dictionaries ("de") instead of lists ("le").
      */
-    private array $params = [
-        // Set to true to encode empty arrays as dictionaries ("de") instead of lists ("le")
-        'encodeEmptyArrayAsDictionary' => false,
-    ];
+    private bool $encodeEmptyArrayAsDictionary;
 
     /**
      * Class constructor.
      *
-     * @param array $params Parameters for the encoder
+     * @param bool $encodeEmptyArrayAsDictionary Encode empty arrays as dictionaries instead of lists
      */
-    public function __construct(array $params = [])
+    public function __construct(bool $encodeEmptyArrayAsDictionary = false)
     {
-        $this->params = \array_replace($this->params, $params);
+        $this->encodeEmptyArrayAsDictionary = $encodeEmptyArrayAsDictionary;
     }
 
     public function encode(int|string|array $var): string
@@ -34,18 +31,11 @@ final class Encoder implements EncoderInterface
             return $this->encodeString($var);
         }
 
-        $size = \count($var);
-        if (!$size && $this->params['encodeEmptyArrayAsDictionary']) {
+        if (!$var && $this->encodeEmptyArrayAsDictionary) {
             return $this->encodeDictionary($var);
         }
 
-        for ($i = 0; $i < $size; ++$i) {
-            if (!isset($var[$i])) {
-                return $this->encodeDictionary($var);
-            }
-        }
-
-        return $this->encodeList($var);
+        return \array_is_list($var) ? $this->encodeList($var) : $this->encodeDictionary($var);
     }
 
     public function encodeInteger(int $integer): string
@@ -69,7 +59,7 @@ final class Encoder implements EncoderInterface
 
     public function encodeDictionary(array $dictionary): string
     {
-        \ksort($dictionary);
+        \ksort($dictionary, \SORT_STRING);
 
         $encodedDictionary = '';
 

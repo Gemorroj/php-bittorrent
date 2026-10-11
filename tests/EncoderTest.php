@@ -102,7 +102,7 @@ final class EncoderTest extends TestCase
     }
 
     #[DataProvider('getEncodeData')]
-    public function testEncodeUsingGenericMethod($value, string $encoded): void
+    public function testEncodeUsingGenericMethod(int|string|array $value, string $encoded): void
     {
         $this->assertSame($encoded, $this->encoder->encode($value));
     }
@@ -112,9 +112,7 @@ final class EncoderTest extends TestCase
         $encoder = new Encoder();
         $this->assertSame('le', $encoder->encode([]));
 
-        $encoder = new Encoder([
-            'encodeEmptyArrayAsDictionary' => true,
-        ]);
+        $encoder = new Encoder(encodeEmptyArrayAsDictionary: true);
         $this->assertSame('de', $encoder->encode([]));
     }
 }
