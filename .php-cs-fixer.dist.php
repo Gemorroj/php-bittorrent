@@ -1,7 +1,7 @@
 <?php
 
 $finder = PhpCsFixer\Finder::create()
-    //->exclude(['fixtures'])
+    ->exclude(['fixtures'])
     ->in(['src', 'tests']);
 
 return (new PhpCsFixer\Config())

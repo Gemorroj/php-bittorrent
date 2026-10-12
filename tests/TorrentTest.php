@@ -13,9 +13,63 @@ final class TorrentTest extends TestCase
 {
     private Torrent $torrent;
 
+    /**
+     * Directory with files to pack into a torrent, created on demand by createSourceDirectory().
+     */
+    private ?string $sourceDirectory = null;
+
     protected function setUp(): void
     {
         $this->torrent = new Torrent();
+    }
+
+    protected function tearDown(): void
+    {
+        if (null !== $this->sourceDirectory) {
+            $this->removeDirectory($this->sourceDirectory);
+            $this->sourceDirectory = null;
+        }
+
+        parent::tearDown();
+    }
+
+    /**
+     * @param array<string, mixed> $dictionary
+     */
+    private static function encodeTorrent(array $dictionary): string
+    {
+        return new Encoder()->encodeDictionary($dictionary);
+    }
+
+    /**
+     * Create a temporary directory with a file tree to build a torrent from.
+     *
+     * The files are larger than a single piece (256 KiB) and include an empty file, so the piece
+     * hashing covers full pieces, pieces split across files and empty files: 400000 bytes in total.
+     */
+    private function createSourceDirectory(): string
+    {
+        $directory = \sys_get_temp_dir().\DIRECTORY_SEPARATOR.\uniqid('php-bittorrent-', true);
+        \mkdir($directory.\DIRECTORY_SEPARATOR.'nested', 0o777, true);
+        \file_put_contents($directory.\DIRECTORY_SEPARATOR.'empty.bin', '');
+        \file_put_contents($directory.\DIRECTORY_SEPARATOR.'part.bin', \str_repeat('a', 200000));
+        \file_put_contents($directory.\DIRECTORY_SEPARATOR.'nested'.\DIRECTORY_SEPARATOR.'rest.bin', \str_repeat('b', 200000));
+
+        return $this->sourceDirectory = $directory;
+    }
+
+    private function removeDirectory(string $directory): void
+    {
+        $iterator = new \RecursiveIteratorIterator(
+            new \RecursiveDirectoryIterator($directory, \FilesystemIterator::SKIP_DOTS),
+            \RecursiveIteratorIterator::CHILD_FIRST
+        );
+
+        foreach ($iterator as $entry) {
+            $entry->isDir() ? \rmdir($entry->getPathname()) : \unlink($entry->getPathname());
+        }
+
+        \rmdir($directory);
     }
 
     public function testConstructor(): void
@@ -148,6 +202,19 @@ final class TorrentTest extends TestCase
         $this->assertSame($files, $this->torrent->withInfo(['files' => $files])->getFileList());
     }
 
+    public function testGetFileListAndSizeWhenInfoHasNoFiles(): void
+    {
+        $torrent = $this->torrent->withInfo([]);
+
+        $this->assertSame([], $torrent->getFileList());
+        $this->assertSame(0, $torrent->getSize());
+    }
+
+    public function testGetNameWhenNameIsMissing(): void
+    {
+        $this->assertSame('', $this->torrent->withInfo(['length' => 1])->getName());
+    }
+
     public function testGetSizeWhenInfoBlockHasSeveralFiles(): void
     {
         $files = [
@@ -160,7 +227,7 @@ final class TorrentTest extends TestCase
 
     public function testCreateFromTorrentFile(): void
     {
-        $torrent = Torrent::createFromTorrentFile(__DIR__.'/_files/valid.torrent', new Decoder());
+        $torrent = Torrent::createFromTorrentFile(__DIR__.'/fixtures/multi-file.torrent', new Decoder());
 
         $this->assertSame('http://trackerurl', $torrent->getAnnounceUrl());
         $this->assertSame('This is a comment', $torrent->getComment());
@@ -172,7 +239,7 @@ final class TorrentTest extends TestCase
 
     public function testCreateFromTorrentFileString(): void
     {
-        $contents = \file_get_contents(__DIR__.'/_files/valid.torrent');
+        $contents = \file_get_contents(__DIR__.'/fixtures/multi-file.torrent');
         $this->assertIsString($contents);
         $torrent = Torrent::createFromString($contents, new Decoder());
 
@@ -186,7 +253,6 @@ final class TorrentTest extends TestCase
 
     public function testCreateFromTorrentFileWithLists(): void
     {
-        $torrent = Torrent::createFromTorrentFile(__DIR__.'/_extra_files/extra.torrent', new Decoder());
         $announceList = [
             [
                 'http://tracker/',
@@ -194,6 +260,11 @@ final class TorrentTest extends TestCase
                 'http://tracker3/',
             ],
         ];
+        $torrent = Torrent::createFromString(self::encodeTorrent([
+            'announce' => 'http://tracker/',
+            'announce-list' => $announceList,
+            'info' => ['name' => 'extra', 'length' => 440, 'piece length' => 262144, 'pieces' => \str_repeat("\0", 20)],
+        ]), new Decoder());
 
         $this->assertSame('http://tracker/', $torrent->getAnnounceUrl());
         $this->assertEquals($announceList, $torrent->getAnnounceList());
@@ -202,7 +273,6 @@ final class TorrentTest extends TestCase
 
     public function testCreateFromTorrentFileWithExtra(): void
     {
-        $torrent = Torrent::createFromTorrentFile(__DIR__.'/_extra_files/extra.torrent', new Decoder());
         $webSeeds = [
             'url-list' => [
                 'http://seed/',
@@ -210,37 +280,78 @@ final class TorrentTest extends TestCase
                 'http://seed3/',
             ],
         ];
+        $torrent = Torrent::createFromString(self::encodeTorrent([
+            'announce' => 'http://tracker/',
+            'info' => ['name' => 'extra', 'length' => 440, 'piece length' => 262144, 'pieces' => \str_repeat("\0", 20)],
+            'url-list' => $webSeeds['url-list'],
+        ]), new Decoder());
 
         $this->assertEquals($webSeeds, $torrent->getExtraMeta());
     }
 
+    public function testCreateFromPathHashesPieces(): void
+    {
+        $path = $this->createSourceDirectory();
+        $torrent = Torrent::createFromPath($path, 'http://tracker/');
+
+        $info = $torrent->getInfo();
+        $this->assertIsArray($info);
+        $pieceLength = (int) $info['piece length'];
+
+        // Independently rebuild the byte stream from the listed files and hash it piece by piece
+        $content = '';
+        foreach ($torrent->getFileList() as $file) {
+            $chunk = \file_get_contents($path.\DIRECTORY_SEPARATOR.\implode(\DIRECTORY_SEPARATOR, $file['path']));
+            $this->assertIsString($chunk);
+            $content .= $chunk;
+        }
+
+        $expectedPieces = '';
+        for ($offset = 0; $offset < \strlen($content); $offset += $pieceLength) {
+            $expectedPieces .= \sha1(\substr($content, $offset, $pieceLength), true);
+        }
+
+        $this->assertSame($expectedPieces, $info['pieces']);
+        $this->assertGreaterThan(1, \intdiv(\strlen($expectedPieces), 20), 'Expected more than one piece');
+    }
+
+    public function testCreateFromDictionaryWithAnnounceAsArray(): void
+    {
+        $torrent = Torrent::createFromDictionary([
+            'announce' => ['http://tracker1', 'http://tracker2'],
+        ]);
+
+        $this->assertSame('http://tracker1', $torrent->getAnnounceUrl());
+    }
+
     public function testCreateFromPathWhenUsingADirectoryAsArgument(): void
     {
-        $path = __DIR__.'/_files';
+        $path = $this->createSourceDirectory();
         $trackerUrl = 'http://trackerurl';
         $torrent = Torrent::createFromPath($path, $trackerUrl);
 
         $this->assertSame($trackerUrl, $torrent->getAnnounceUrl());
-        $this->assertSame('_files', $torrent->getName());
-        $this->assertEquals(902910, $torrent->getSize());
-        $this->assertCount(7, $torrent->getFileList());
+        $this->assertSame(\basename($path), $torrent->getName());
+        $this->assertEquals(400000, $torrent->getSize());
+        $this->assertCount(3, $torrent->getFileList());
     }
 
     public function testCreateFromPathWhenUsingAFileAsArgument(): void
     {
-        $path = __DIR__.'/_files/valid.torrent';
+        $path = __DIR__.'/fixtures/multi-file.torrent';
         $trackerUrl = 'http://trackerurl';
         $torrent = Torrent::createFromPath($path, $trackerUrl);
 
         $this->assertSame($trackerUrl, $torrent->getAnnounceUrl());
-        $this->assertSame('valid.torrent', $torrent->getName());
+        $this->assertSame('multi-file.torrent', $torrent->getName());
         $this->assertSame(440, $torrent->getSize());
         $this->assertCount(1, $torrent->getFileList());
     }
 
     public function testSaveTorrent(): void
     {
-        $path = __DIR__.'/_files';
+        $path = $this->createSourceDirectory();
+        $name = \basename($path);
         $announce = 'http://tracker/';
         $announceList = [['http://tracker2'], ['http://tracker3']];
         $comment = 'Some comment';
@@ -263,17 +374,36 @@ final class TorrentTest extends TestCase
         $this->assertSame($announce, $torrent->getAnnounceUrl());
         $this->assertSame($comment, $torrent->getComment());
         $this->assertSame($createdBy, $torrent->getCreatedBy());
-        $this->assertSame('_files', $torrent->getName());
-        $this->assertEquals(902910, $torrent->getSize());
-        $this->assertCount(7, $torrent->getFileList());
+        $this->assertSame($name, $torrent->getName());
+        $this->assertEquals(400000, $torrent->getSize());
+        $this->assertCount(3, $torrent->getFileList());
         $this->assertSame($announceList, $torrent->getAnnounceList());
+
+        \unlink($target);
+    }
+
+    public function testSaveKeepsZeroCreationDate(): void
+    {
+        $target = \tempnam(\sys_get_temp_dir(), 'PHP\BitTorrent');
+
+        if (!$target) {
+            $this->fail('Could not create file: '.$target);
+        }
+
+        Torrent::createFromPath(__DIR__.'/fixtures/multi-file.torrent', 'http://tracker/')
+            ->withCreatedAt(0)
+            ->save($target);
+
+        $torrent = Torrent::createFromTorrentFile($target, new Decoder());
+
+        $this->assertSame(0, $torrent->getCreatedAt());
 
         \unlink($target);
     }
 
     public function testSaveWithExtra(): void
     {
-        $path = __DIR__.'/_files';
+        $path = $this->createSourceDirectory();
         $announce = 'http://tracker/';
         $target = \tempnam(\sys_get_temp_dir(), 'PHP\BitTorrent');
 
@@ -301,7 +431,7 @@ final class TorrentTest extends TestCase
 
     public function testSaveWithInvalidExtra(): void
     {
-        $path = __DIR__.'/_files';
+        $path = $this->createSourceDirectory();
         $announce = 'http://tracker/';
         $target = \tempnam(\sys_get_temp_dir(), 'PHP\BitTorrent');
 
@@ -374,8 +504,16 @@ final class TorrentTest extends TestCase
     {
         $this->assertSame(
             'c717bfd30211a5e36c94cabaab3b3ca0dc89f91a',
-            Torrent::createFromTorrentFile(__DIR__.'/_files/valid.torrent', new Decoder())->getHash()
+            Torrent::createFromTorrentFile(__DIR__.'/fixtures/multi-file.torrent', new Decoder())->getHash()
         );
+    }
+
+    public function testGetHashWhenBuiltProgrammatically(): void
+    {
+        // No original bytes are available here, so the hash is computed from a re-encoded info
+        $torrent = $this->torrent->withInfo(['name' => 'some', 'length' => 1]);
+
+        $this->assertSame(\sha1(new Encoder()->encodeDictionary($torrent->getInfo())), $torrent->getHash());
     }
 
     public function testGetHashUsesOriginalInfoBytes(): void
@@ -393,29 +531,79 @@ final class TorrentTest extends TestCase
     {
         $this->assertSame(
             '%C7%17%BF%D3%02%11%A5%E3l%94%CA%BA%AB%3B%3C%A0%DC%89%F9%1A',
-            Torrent::createFromTorrentFile(__DIR__.'/_files/valid.torrent', new Decoder())->getEncodedHash()
+            Torrent::createFromTorrentFile(__DIR__.'/fixtures/multi-file.torrent', new Decoder())->getEncodedHash()
         );
+    }
+
+    public function testGetEncodedHashUsesRawUrlEncoding(): void
+    {
+        // This info hash contains 0x20 and 0x7E bytes: urlencode() would encode them as "+" and "%7E"
+        // while rawurlencode() produces "%20" and "~".
+        $torrent = Torrent::createFromDictionary(['info' => ['length' => 0, 'name' => 'a']]);
+        $hash = $torrent->getHash(true);
+
+        $this->assertSame(\rawurlencode($hash), $torrent->getEncodedHash());
+        $this->assertStringContainsString('%20', $torrent->getEncodedHash());
+        $this->assertNotSame(\urlencode($hash), $torrent->getEncodedHash());
     }
 
     public function testGetSizeWithLargeValues(): void
     {
         $decoder = new Decoder();
-        $this->assertSame(6442450944, Torrent::createFromTorrentFile(__DIR__.'/_files/large_files.torrent', $decoder)->getSize());
-        $this->assertSame(5368709120, Torrent::createFromTorrentFile(__DIR__.'/_files/large_file.img.torrent', $decoder)->getSize());
+        $multiFile = Torrent::createFromString(self::encodeTorrent([
+            'announce' => 'http://tracker/',
+            'info' => [
+                'name' => 'large_files',
+                'piece length' => 262144,
+                'pieces' => \str_repeat("\0", 20),
+                'files' => [
+                    ['length' => 2147483648, 'path' => ['file1.img']],
+                    ['length' => 2147483648, 'path' => ['file2.img']],
+                    ['length' => 2147483648, 'path' => ['file3.img']],
+                ],
+            ],
+        ]), $decoder);
+        $singleFile = Torrent::createFromString(self::encodeTorrent([
+            'announce' => 'http://tracker/',
+            'info' => [
+                'name' => 'large_file.img',
+                'piece length' => 262144,
+                'pieces' => \str_repeat("\0", 20),
+                'length' => 5368709120,
+            ],
+        ]), $decoder);
+
+        $this->assertSame(6442450944, $multiFile->getSize());
+        $this->assertSame(5368709120, $singleFile->getSize());
     }
 
     public function testIsPrivateWhenFlagDoesNotExist(): void
     {
-        $this->assertFalse(Torrent::createFromTorrentFile(__DIR__.'/_files/large_files.torrent', new Decoder())->isPrivate());
+        $torrent = Torrent::createFromString(self::encodeTorrent([
+            'announce' => 'http://tracker/',
+            'info' => ['name' => 'some', 'length' => 1],
+        ]), new Decoder());
+
+        $this->assertFalse($torrent->isPrivate());
     }
 
     public function testIsPrivateWhenItExistsAndIs1(): void
     {
-        $this->assertTrue(Torrent::createFromTorrentFile(__DIR__.'/_files/file_with_private_set_to_1.torrent', new Decoder())->isPrivate());
+        $torrent = Torrent::createFromString(self::encodeTorrent([
+            'announce' => 'http://tracker/',
+            'info' => ['name' => 'some', 'length' => 1, 'private' => 1],
+        ]), new Decoder());
+
+        $this->assertTrue($torrent->isPrivate());
     }
 
     public function testIsPrivateWhenItExistsAndIsNot1(): void
     {
-        $this->assertFalse(Torrent::createFromTorrentFile(__DIR__.'/_files/file_with_private_set_to_0.torrent', new Decoder())->isPrivate());
+        $torrent = Torrent::createFromString(self::encodeTorrent([
+            'announce' => 'http://tracker/',
+            'info' => ['name' => 'some', 'length' => 1, 'private' => 0],
+        ]), new Decoder());
+
+        $this->assertFalse($torrent->isPrivate());
     }
 }
