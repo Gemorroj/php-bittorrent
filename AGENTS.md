@@ -49,6 +49,7 @@ vendor/bin/php-cs-fixer fix
 
 ## Conventions
 
+- Commit messages follow [Conventional Commits](https://www.conventionalcommits.org/).
 - Follow PSR-4 autoloading (`BitTorrent\` maps to `src/`).
 - Keep the public API of `Encoder`, `Decoder`, and `Torrent` backward compatible unless there is a good reason to break it.
 - Add or update tests in `tests/` for behavior changes.
